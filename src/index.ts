@@ -2,6 +2,7 @@ import { createHash, scryptSync } from 'crypto';
 import { hash as argon2, argon2id } from 'argon2';
 import CliProgress from 'cli-progress';
 import { keccak512 } from 'js-sha3';
+import { chunk } from 'lodash';
 import yargs from 'yargs';
 import { Logger } from './utils/logger';
 
@@ -160,7 +161,11 @@ const main = async () => {
           bar.stop();
 
           Logger.info();
-          Logger.info(`Key (hex) is: ${res.toString('hex')}`);
+          Logger.info('Key (hex) is:');
+
+          for (const part of chunk(res, 64)) {
+            Logger.info(Buffer.from(part).toString('hex'));
+          }
         }
       )
       .parse();
