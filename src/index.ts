@@ -6,9 +6,28 @@ import { chunk } from 'lodash';
 import yargs from 'yargs';
 import { Logger } from './utils/logger';
 
-const ARGON2_VERSION = 19;
-
 const VERSION = process.env.npm_package_version!;
+
+const DEFAULT_ITERATIONS = 100;
+const MIN_KEY_LENGTH = 10;
+const MAX_KEY_LENGTH = 128;
+const DEFAULT_KEY_LENGTH = 16;
+const SALT_LENGTH = 16;
+
+const MAX_SCRYPT_N = 4294967295;
+const DEFAULT_SCRYPT_N = 1 << 20;
+const MAX_SCRYPT_R = 4294967295;
+const DEFAULT_SCRYPT_R = 8;
+const MAX_SCRYPT_P = 4294967295;
+const DEFAULT_SCRYPT_P = 1;
+
+const ARGON2_VERSION = 19;
+const MIN_ARGON2_M_COST = 8;
+const MAX_ARGON2_M_COST = 4294967295;
+const DEFAULT_ARGON2_M_COST = 1 << 21;
+const MIN_ARGON2_T_COST = 2;
+const MAX_ARGON2_T_COST = 4294967295;
+const DEFAULT_ARGON2_T_COST = 2;
 
 const doubleHash = (salt: Buffer, secret: Buffer, prevRes: Buffer) => {
   let res = prevRes;
@@ -20,6 +39,58 @@ const doubleHash = (salt: Buffer, secret: Buffer, prevRes: Buffer) => {
   res = Buffer.from(keccak512(Buffer.concat([res, salt, secret])), 'hex');
 
   return res;
+};
+
+// MIN_MAX_LENGTH
+
+const verifyParams = (
+  salt: string,
+  length: number,
+  scryptN: number,
+  scryptR: number,
+  scryptP: number,
+  argon2MCost: number,
+  argon2TCost: number
+) => {
+  if (salt.length !== SALT_LENGTH) {
+    throw new Error(`Invalid salt. Salt must be ${SALT_LENGTH} long`);
+  }
+
+  if (length < MIN_KEY_LENGTH) {
+    throw new Error(`Invalid length. Length ${length} is lesser than the minimum length ${MIN_KEY_LENGTH}`);
+  }
+
+  if (length > MAX_KEY_LENGTH) {
+    throw new Error(`Invalid length. Length ${length} is greater than the maximum length ${MAX_KEY_LENGTH}`);
+  }
+
+  if (scryptN > MAX_SCRYPT_N) {
+    throw new Error(`Invalid scrypt N. Value ${scryptN} is greater than the maximum ${MAX_SCRYPT_N}`);
+  }
+
+  if (scryptR > MAX_SCRYPT_R) {
+    throw new Error(`Invalid scrypt r. Value ${scryptR} is greater than the maximum ${MAX_SCRYPT_R}`);
+  }
+
+  if (scryptP > MAX_SCRYPT_P) {
+    throw new Error(`Invalid scrypt p. Value ${scryptP} is greater than the maximum ${MAX_SCRYPT_P}`);
+  }
+
+  if (argon2MCost < MIN_ARGON2_M_COST) {
+    throw new Error(`Invalid argon m_cost. Value ${argon2MCost} is lesser than the minimum ${MIN_ARGON2_M_COST}`);
+  }
+
+  if (argon2MCost > MAX_ARGON2_M_COST) {
+    throw new Error(`Invalid argon m_cost. Value ${argon2MCost} is greater than the maximum ${MAX_ARGON2_M_COST}`);
+  }
+
+  if (argon2TCost < MIN_ARGON2_T_COST) {
+    throw new Error(`Invalid argon t_cost. Value ${argon2TCost} is lesser than the minimum ${MIN_ARGON2_T_COST}`);
+  }
+
+  if (argon2TCost > MAX_ARGON2_T_COST) {
+    throw new Error(`Invalid argon t_cost. Value ${argon2TCost} is greater than the maximum ${MAX_ARGON2_T_COST}`);
+  }
 };
 
 const main = async () => {
@@ -39,59 +110,42 @@ const main = async () => {
             description: 'Number of iterations',
             type: 'number',
             alias: 'i',
-            default: 100
+            default: DEFAULT_ITERATIONS
           },
           length: {
             description: 'Length of the derived result',
             type: 'number',
             alias: 'l',
-            min: 10,
-            max: 64,
-            default: 16
+            default: DEFAULT_KEY_LENGTH
           },
-          'scrypt-log-n': {
+          'scrypt-n': {
             description: 'Scrypt CPU/memory cost parameter',
             type: 'number',
-            max: 4294967295,
-            default: 20
+            default: DEFAULT_SCRYPT_N
           },
           'scrypt-r': {
             description: 'Scrypt block size parameter, which fine-tunes sequential memory read size and performance',
             type: 'number',
-            max: 4294967295,
-            default: 8
+            default: DEFAULT_SCRYPT_R
           },
           'scrypt-p': {
             description: 'Scrypt parallelization parameter',
             type: 'number',
-            max: 4294967295,
-            default: 1
+            default: DEFAULT_SCRYPT_P
           },
           'argon2-m-cost': {
             description: 'Argon2 number of 1 KiB memory block',
             type: 'number',
-            min: 8,
-            max: 4294967295,
-            default: 1 << 21
+            default: DEFAULT_ARGON2_M_COST
           },
           'argon2-t-cost': {
             description: 'Argon2 number of iterations',
             type: 'number',
-            min: 2,
-            max: 4294967295,
-            default: 2
-          },
-          'argon2-p-cost': {
-            description: 'Argon2 number of threads',
-            type: 'number',
-            min: 2,
-            max: 16777215,
-            default: 4
+            default: DEFAULT_ARGON2_T_COST
           },
           salt: {
             description: 'Random data fed as an additional input to the KDF',
             type: 'string',
-            min: 8,
             required: true
           },
           secret: {
@@ -100,29 +154,21 @@ const main = async () => {
             required: true
           }
         },
-        async ({
-          iterations,
-          length,
-          scryptLogN,
-          scryptR,
-          scryptP,
-          argon2MCost,
-          argon2TCost,
-          argon2PCost,
-          salt,
-          secret
-        }) => {
+        async ({ iterations, length, scryptN, scryptR, scryptP, argon2MCost, argon2TCost, salt, secret }) => {
+          verifyParams(salt, length, scryptN, scryptR, scryptP, argon2MCost, argon2TCost);
+
           Logger.notice(
-            `SlowKey: iterations: ${iterations}, length: ${length}, Scrypt: (log_n: ${scryptLogN}, r: ${scryptR}, p: ${scryptP}), Argon2id: (version: ${ARGON2_VERSION}, m_cost: ${argon2MCost}, t_cost: ${argon2TCost}, p_cost: ${argon2PCost})`
+            `SlowKey: iterations: ${iterations}, length: ${length}, Scrypt: (n: ${scryptN}, r: ${scryptR}, p: ${scryptP}), Argon2id: (version: ${ARGON2_VERSION}, m_cost: ${argon2MCost}, t_cost: ${argon2TCost})`
           );
           Logger.info();
 
           const bar = new CliProgress.SingleBar(CliProgress.Presets.shades_classic);
           bar.start(iterations, 0);
 
-          let res = Buffer.alloc(0);
           const saltBuf = Buffer.from(salt);
           const secretBuf = Buffer.from(secret);
+
+          let res = Buffer.alloc(0);
 
           for (let i = 0; i < iterations; ++i) {
             // Calculate the SHA3 and SHA2 hashes of the result and the inputs
@@ -130,10 +176,10 @@ const main = async () => {
 
             // Calculate the Scrypt hash of the result and the inputs
             res = scryptSync(Buffer.concat([res, saltBuf, secretBuf]), saltBuf, length, {
-              N: 1 << scryptLogN,
+              N: scryptN,
               r: scryptR,
               p: scryptP,
-              maxmem: 128 * (1 << scryptLogN) * scryptR * 2
+              maxmem: 128 * scryptN * scryptR * 2
             });
 
             // Calculate the SHA3 and SHA2 hashes of the result and the inputs again
@@ -146,7 +192,7 @@ const main = async () => {
                 type: argon2id,
                 memoryCost: argon2MCost,
                 timeCost: argon2TCost,
-                parallelism: argon2PCost
+                parallelism: 1
               },
               ...{ salt: saltBuf, hashLength: length, raw: true }
             });

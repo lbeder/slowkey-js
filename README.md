@@ -41,15 +41,14 @@ Options:
       --version        Show version number                                                                     [boolean]
   -i, --iterations     Number of iterations                                                      [number] [default: 100]
   -l, --length         Length of the derived result                                               [number] [default: 16]
-      --scrypt-log-n   Scrypt CPU/memory cost parameter                                           [number] [default: 20]
+      --scrypt-n       Scrypt CPU/memory cost parameter                                      [number] [default: 1048576]
       --scrypt-r       Scrypt block size parameter, which fine-tunes sequential memory read size and performance
                                                                                                    [number] [default: 8]
       --scrypt-p       Scrypt parallelization parameter                                            [number] [default: 1]
       --argon2-m-cost  Argon2 number of 1 KiB memory block                                   [number] [default: 2097152]
       --argon2-t-cost  Argon2 number of iterations                                                 [number] [default: 2]
-      --argon2-p-cost  Argon2 number of threads                                                    [number] [default: 4]
       --salt           Random data fed as an additional input to the KDF                             [string] [required]
-      --secret         Input secret to the KFD                                                       [string] [required]
+      --secret         Input secret to the KDF                                                       [string] [required]
 ```
 
 ### Printing Test Vectors
