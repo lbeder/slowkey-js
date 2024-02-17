@@ -8,6 +8,8 @@ import { Logger } from './utils/logger';
 
 const VERSION = process.env.npm_package_version!;
 
+const MIN_ITERATIONS = 1;
+const MAX_ITERATIONS = 4294967295;
 const DEFAULT_ITERATIONS = 100;
 const MIN_KEY_LENGTH = 10;
 const MAX_KEY_LENGTH = 128;
@@ -44,6 +46,7 @@ const doubleHash = (salt: Buffer, secret: Buffer, prevRes: Buffer) => {
 // MIN_MAX_LENGTH
 
 const verifyParams = (
+  iterations: number,
   salt: string,
   length: number,
   scryptN: number,
@@ -52,6 +55,14 @@ const verifyParams = (
   argon2MCost: number,
   argon2TCost: number
 ) => {
+  if (iterations < MIN_ITERATIONS) {
+    throw new Error(`Invalid iterations number. Value ${iterations} is lesser than the minimum ${MIN_ITERATIONS}`);
+  }
+
+  if (iterations > MAX_ITERATIONS) {
+    throw new Error(`Invalid iterations number. Value ${iterations} is greater than the maximum ${MAX_ITERATIONS}`);
+  }
+
   if (salt.length !== SALT_LENGTH) {
     throw new Error(`Invalid salt. Salt must be ${SALT_LENGTH} long`);
   }
@@ -155,7 +166,7 @@ const main = async () => {
           }
         },
         async ({ iterations, length, scryptN, scryptR, scryptP, argon2MCost, argon2TCost, salt, secret }) => {
-          verifyParams(salt, length, scryptN, scryptR, scryptP, argon2MCost, argon2TCost);
+          verifyParams(iterations, salt, length, scryptN, scryptR, scryptP, argon2MCost, argon2TCost);
 
           Logger.notice(
             `SlowKey: iterations: ${iterations}, length: ${length}, Scrypt: (n: ${scryptN}, r: ${scryptR}, p: ${scryptP}), Argon2id: (version: ${ARGON2_VERSION}, m_cost: ${argon2MCost}, t_cost: ${argon2TCost})`
