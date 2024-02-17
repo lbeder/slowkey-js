@@ -182,7 +182,7 @@ const main = async () => {
           let res = Buffer.alloc(0);
 
           for (let i = 0; i < iterations; ++i) {
-            // Calculate the SHA3 and SHA2 hashes of the result and the inputs
+            // Calculate the SHA2 and SHA3 hashes of the result and the inputs
             res = doubleHash(saltBuf, secretBuf, res);
 
             // Calculate the Scrypt hash of the result and the inputs
@@ -193,7 +193,7 @@ const main = async () => {
               maxmem: 128 * scryptN * scryptR * 2
             });
 
-            // Calculate the SHA3 and SHA2 hashes of the result and the inputs again
+            // Calculate the SHA2 and SHA3 hashes of the result and the inputs again
             res = doubleHash(saltBuf, secretBuf, res);
 
             // Calculate the Argon2 hash of the result and the inputs
@@ -211,7 +211,7 @@ const main = async () => {
             bar.increment();
           }
 
-          // Calculate the final SHA3 and SHA2 hashes (and trim the result, if required)
+          // Calculate the final SHA2 and SHA3 hashes (and trim the result, if required)
           res = doubleHash(saltBuf, secretBuf, res);
           res = res.subarray(0, length);
 
