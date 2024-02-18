@@ -92,7 +92,7 @@ Options:
       --argon2-m-cost  Argon2 number of 1 KiB memory block                                   [number] [default: 2097152]
       --argon2-t-cost  Argon2 number of iterations                                                 [number] [default: 2]
       --salt           Random data fed as an additional input to the KDF                             [string] [required]
-      --secret         Input secret to the KDF                                                       [string] [required]
+      --password       Input password to the KDF                                                     [string] [required]
 ```
 
 ### Printing Test Vectors

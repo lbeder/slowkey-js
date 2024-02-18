@@ -31,23 +31,20 @@ const MIN_ARGON2_T_COST = 2;
 const MAX_ARGON2_T_COST = 4294967295;
 const DEFAULT_ARGON2_T_COST = 2;
 
-const doubleHash = (salt: Buffer, secret: Buffer, prevRes: Buffer) => {
+const doubleHash = (salt: Buffer, password: Buffer, prevRes: Buffer) => {
   let res = prevRes;
 
   res = createHash('sha512')
-    .update(Buffer.concat([res, salt, secret]))
+    .update(Buffer.concat([res, salt, password]))
     .digest();
 
-  res = Buffer.from(keccak512(Buffer.concat([res, salt, secret])), 'hex');
+  res = Buffer.from(keccak512(Buffer.concat([res, salt, password])), 'hex');
 
   return res;
 };
 
-// MIN_MAX_LENGTH
-
 const verifyParams = (
   iterations: number,
-  salt: string,
   length: number,
   scryptN: number,
   scryptR: number,
@@ -61,10 +58,6 @@ const verifyParams = (
 
   if (iterations > MAX_ITERATIONS) {
     throw new Error(`Invalid iterations number. Value ${iterations} is greater than the maximum ${MAX_ITERATIONS}`);
-  }
-
-  if (salt.length !== SALT_LENGTH) {
-    throw new Error(`Invalid salt. Salt must be ${SALT_LENGTH} long`);
   }
 
   if (length < MIN_KEY_LENGTH) {
@@ -159,14 +152,25 @@ const main = async () => {
             type: 'string',
             required: true
           },
-          secret: {
-            description: 'Input secret to the KDF',
+          password: {
+            description: 'Input password to the KDF',
             type: 'string',
             required: true
           }
         },
-        async ({ iterations, length, scryptN, scryptR, scryptP, argon2MCost, argon2TCost, salt, secret }) => {
-          verifyParams(iterations, salt, length, scryptN, scryptR, scryptP, argon2MCost, argon2TCost);
+        async ({ iterations, length, scryptN, scryptR, scryptP, argon2MCost, argon2TCost, salt, password }) => {
+          let saltBuf = salt.startsWith('0x') ? Buffer.from(salt.slice(2), 'hex') : Buffer.from(salt);
+          if (saltBuf.length < SALT_LENGTH) {
+            const paddedBuf = Buffer.alloc(SALT_LENGTH, 0);
+            saltBuf.copy(paddedBuf, 0);
+            saltBuf = paddedBuf;
+          } else if (saltBuf.length > SALT_LENGTH) {
+            saltBuf = createHash('sha512').update(saltBuf).digest().subarray(0, SALT_LENGTH);
+          }
+
+          const passwordBuf = password.startsWith('0x') ? Buffer.from(password.slice(2), 'hex') : Buffer.from(password);
+
+          verifyParams(iterations, length, scryptN, scryptR, scryptP, argon2MCost, argon2TCost);
 
           Logger.notice(
             `SlowKey: iterations: ${iterations}, length: ${length}, Scrypt: (n: ${scryptN}, r: ${scryptR}, p: ${scryptP}), Argon2id: (version: ${ARGON2_VERSION}, m_cost: ${argon2MCost}, t_cost: ${argon2TCost})`
@@ -176,17 +180,14 @@ const main = async () => {
           const bar = new CliProgress.SingleBar(CliProgress.Presets.shades_classic);
           bar.start(iterations, 0);
 
-          const saltBuf = Buffer.from(salt);
-          const secretBuf = Buffer.from(secret);
-
           let res = Buffer.alloc(0);
 
           for (let i = 0; i < iterations; ++i) {
             // Calculate the SHA2 and SHA3 hashes of the result and the inputs
-            res = doubleHash(saltBuf, secretBuf, res);
+            res = doubleHash(saltBuf, passwordBuf, res);
 
             // Calculate the Scrypt hash of the result and the inputs
-            res = scryptSync(Buffer.concat([res, saltBuf, secretBuf]), saltBuf, length, {
+            res = scryptSync(Buffer.concat([res, saltBuf, passwordBuf]), saltBuf, length, {
               N: scryptN,
               r: scryptR,
               p: scryptP,
@@ -194,10 +195,10 @@ const main = async () => {
             });
 
             // Calculate the SHA2 and SHA3 hashes of the result and the inputs again
-            res = doubleHash(saltBuf, secretBuf, res);
+            res = doubleHash(saltBuf, passwordBuf, res);
 
             // Calculate the Argon2 hash of the result and the inputs
-            res = await argon2(Buffer.concat([res, saltBuf, secretBuf]), {
+            res = await argon2(Buffer.concat([res, saltBuf, passwordBuf]), {
               ...{
                 version: ARGON2_VERSION,
                 type: argon2id,
@@ -212,7 +213,7 @@ const main = async () => {
           }
 
           // Calculate the final SHA2 and SHA3 hashes (and trim the result, if required)
-          res = doubleHash(saltBuf, secretBuf, res);
+          res = doubleHash(saltBuf, passwordBuf, res);
           res = res.subarray(0, length);
 
           bar.stop();
