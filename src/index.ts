@@ -212,8 +212,6 @@ const main = async () => {
             bar.increment();
           }
 
-          // Calculate the final SHA2 and SHA3 hashes (and trim the result, if required)
-          res = doubleHash(saltBuf, passwordBuf, res);
           res = res.subarray(0, length);
 
           bar.stop();
