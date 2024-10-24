@@ -13,7 +13,7 @@ const MAX_ITERATIONS = 4294967295;
 const DEFAULT_ITERATIONS = 100;
 const MIN_KEY_LENGTH = 10;
 const MAX_KEY_LENGTH = 128;
-const DEFAULT_KEY_LENGTH = 16;
+const DEFAULT_KEY_LENGTH = 32;
 const SALT_LENGTH = 16;
 
 const MAX_SCRYPT_N = 4294967295;
@@ -31,14 +31,21 @@ const MIN_ARGON2_T_COST = 2;
 const MAX_ARGON2_T_COST = 4294967295;
 const DEFAULT_ARGON2_T_COST = 2;
 
-const doubleHash = (salt: Buffer, password: Buffer, prevRes: Buffer) => {
+const Uint64ToBufferLE = (n: number) => {
+  const buffer = Buffer.alloc(8);
+  buffer.writeBigUint64LE(BigInt(n));
+
+  return buffer;
+};
+
+const doubleHash = (salt: Buffer, password: Buffer, iterations: Buffer, prevRes: Buffer) => {
   let res = prevRes;
 
   res = createHash('sha512')
-    .update(Buffer.concat([res, salt, password]))
+    .update(Buffer.concat([res, salt, password, iterations]))
     .digest();
 
-  res = Buffer.from(keccak512(Buffer.concat([res, salt, password])), 'hex');
+  res = Buffer.from(keccak512(Buffer.concat([res, salt, password, iterations])), 'hex');
 
   return res;
 };
@@ -183,11 +190,13 @@ const main = async () => {
           let res = Buffer.alloc(0);
 
           for (let i = 0; i < iterations; ++i) {
+            const iterationBuf = Uint64ToBufferLE(i);
+
             // Calculate the SHA2 and SHA3 hashes of the result and the inputs
-            res = doubleHash(saltBuf, passwordBuf, res);
+            res = doubleHash(saltBuf, passwordBuf, iterationBuf, res);
 
             // Calculate the Scrypt hash of the result and the inputs
-            res = scryptSync(Buffer.concat([res, saltBuf, passwordBuf]), saltBuf, length, {
+            res = scryptSync(Buffer.concat([res, saltBuf, passwordBuf, iterationBuf]), saltBuf, length, {
               N: scryptN,
               r: scryptR,
               p: scryptP,
@@ -195,10 +204,10 @@ const main = async () => {
             });
 
             // Calculate the SHA2 and SHA3 hashes of the result and the inputs again
-            res = doubleHash(saltBuf, passwordBuf, res);
+            res = doubleHash(saltBuf, passwordBuf, iterationBuf, res);
 
             // Calculate the Argon2 hash of the result and the inputs
-            res = await argon2(Buffer.concat([res, saltBuf, passwordBuf]), {
+            res = await argon2(Buffer.concat([res, saltBuf, passwordBuf, iterationBuf]), {
               ...{
                 version: ARGON2_VERSION,
                 type: argon2id,

@@ -42,18 +42,16 @@ The SlowKey Key Derivation Scheme is defined as follows:
 function deriveKey(password, salt, iterations):
     previousResult = ""
 
-    for i from 1 to iterations:
-        step1 = SHA2(concatenate(previousResult, salt, password))
-        step2 = SHA3(concatenate(step1, salt, password))
-        step3 = Scrypt(step2, salt)
-        step4 = SHA2(concatenate(step3, salt, password))
-        step5 = SHA3(concatenate(step4, salt, password))
-        step6 = Argon2id(step5, salt)
+    for iteration from 1 to iterations:
+        step1 = SHA2(concatenate(previousResult, salt, password, iteration))
+        step2 = SHA3(concatenate(step1, salt, password, iteration))
+        step3 = Scrypt(concatenate(step2, salt, password, iteration), salt)
+        step4 = SHA2(concatenate(step3, salt, password, iteration))
+        step5 = SHA3(concatenate(step4, salt, password, iteration))
+        step6 = Argon2id(concatenate(step5, salt, password, iteration), salt)
         previousResult = step6
 
-    finalStep1 = SHA2(concatenate(previousResult, salt, password))
-    finalStep2 = SHA3(concatenate(finalStep1, salt, password))
-    finalKey = finalStep2
+    finalKey = truncate(previousResult, keySize)
 
     return finalKey
 ```
@@ -84,7 +82,7 @@ Options:
       --help           Show help                                                                               [boolean]
       --version        Show version number                                                                     [boolean]
   -i, --iterations     Number of iterations                                                      [number] [default: 100]
-  -l, --length         Length of the derived result                                               [number] [default: 16]
+  -l, --length         Length of the derived result                                               [number] [default: 32]
       --scrypt-n       Scrypt CPU/memory cost parameter                                      [number] [default: 1048576]
       --scrypt-r       Scrypt block size parameter, which fine-tunes sequential memory read size and performance
                                                                                                    [number] [default: 8]
@@ -93,15 +91,4 @@ Options:
       --argon2-t-cost  Argon2 number of iterations                                                 [number] [default: 2]
       --salt           Random data fed as an additional input to the KDF                             [string] [required]
       --password       Input password to the KDF                                                     [string] [required]
-```
-
-### Printing Test Vectors
-
-```sh
-Print test vectors
-
-Usage: slowkey test
-
-Options:
-  -h, --help  Print help
 ```
